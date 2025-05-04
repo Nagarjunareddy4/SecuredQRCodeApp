@@ -10,8 +10,6 @@
 
 📄 Release Notes
 
-📁 Folder Structure
-
 📥 How to Download .exe
 
 **✅ Updated README.md**
@@ -46,29 +44,31 @@ pip install qrcode opencv-python pillow cryptography PyMuPDF tkinter
 cd SecureQRCodeApp**
 
 If you'd like to build the .exe:
-**pip install pyinstaller
+```bash
+pip install pyinstaller
 pyinstaller --onefile --noconsole qr_encrypt_gui.py
+```
+```bash
 pip install pyinstaller
 pyinstaller --onefile --noconsole qr_decrypt_gui.py
-**
-  Note: Do not commit .exe to GitHub, instead see "Releases".
+```
+Note: Do not commit .exe to GitHub, instead see "Releases".
 
 **🧪 Usage
 🔐 Generate Secure QR Code**
 Run the encryption GUI:
-  **python qr_encrypt_gui.py**
-  
+```bash
+python qr_encrypt_gui.py
+```
 Choose to encrypt message or file
-
 Enter a password (strength meter visible)
-
 Click “Generate QR” and save the QR image
 
 **🔓 Decrypt QR Code**
 Run the decryption GUI:
-
-**python qr_decrypt_gui.py**
-
+```bash
+python qr_decrypt_gui.py
+```
 Choose whether the QR is password protected or not
 Upload the QR image
 Enter the password (if required)
