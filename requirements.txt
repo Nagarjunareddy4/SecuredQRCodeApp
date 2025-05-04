@@ -1,0 +1,6 @@
+tk
+opencv-python
+qrcode
+cryptography
+Pillow
+PyMuPDF
