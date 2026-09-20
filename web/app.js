@@ -1,6 +1,35 @@
 import { encryptPayload, decryptPayload, bytesToText, bytesFromText } from "./crypto-core.js";
 
 const $ = (id) => document.getElementById(id);
+
+const themeToggle = $("theme-toggle");
+let savedTheme = null;
+try {
+  savedTheme = localStorage.getItem("secureqr-theme");
+} catch {
+}
+const prefersDark = typeof window.matchMedia === "function"
+  && window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+function applyTheme(theme) {
+  const dark = theme === "dark";
+  document.documentElement.dataset.theme = dark ? "dark" : "light";
+  themeToggle.setAttribute("aria-pressed", String(dark));
+  themeToggle.setAttribute("aria-label", dark ? "Switch to light theme" : "Switch to dark theme");
+  themeToggle.querySelector(".theme-icon").textContent = dark ? "☀" : "☾";
+  themeToggle.querySelector(".theme-label").textContent = dark ? "Light" : "Dark";
+}
+
+applyTheme(savedTheme || (prefersDark ? "dark" : "light"));
+themeToggle.addEventListener("click", () => {
+  const nextTheme = document.documentElement.dataset.theme === "dark" ? "light" : "dark";
+  try {
+    localStorage.setItem("secureqr-theme", nextTheme);
+  } catch {
+  }
+  applyTheme(nextTheme);
+});
+
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const QR_PAYLOAD_LIMIT = 2400;
 const QR_FRAGMENT_SIZE = 1800;
