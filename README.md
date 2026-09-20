@@ -1,88 +1,123 @@
-✅ Project Overview
-
-🚀 Features
-
-💻 Requirements
-
-📦 Installation
-
-🧪 Usage
-
-📄 Release Notes
-
-📥 How to Download .exe
-
-**✅ Updated README.md**
 # Secure QR Code App
 
-A Python-based secure QR code generator and decoder with encryption, decryption, password protection, and GUI support. This tool allows users to store confidential messages or files securely into QR codes and decrypt them with safety mechanisms like view-only mode and password validation.
+SecureQRCodeApp is an open-source secure QR transfer tool with:
 
----
+- A Python desktop application for encrypting and decrypting messages and files.
+- A browser application in `web/` for client-side encryption and QR transfer.
 
-## 🚀 Features
+The web application performs encryption in the browser. Plaintext data and passwords are not uploaded to a server.
 
-- Generate QR codes from messages or files
-- Encrypt content with a custom password
-- Decrypt QR codes using password or non-password option
-- Password strength indicator (with color feedback)
-- Prevents unauthorized saving or sharing of decrypted content
-- Embedded viewer for files (PDF/Image) with no download option
-- GUI-based interface for both encrypting and decrypting
-- Packaged as `.exe` for easy use (see [Releases](../../releases))
+## Features
 
----
+### Web application
 
-## 💻 Requirements
+- Encrypt private messages with AES-256-GCM.
+- Encrypt any file type up to 10 MB, including images, PDFs, archives and other binary files.
+- Derive encryption keys with PBKDF2-SHA-256 and 600,000 iterations.
+- Split larger encrypted payloads into numbered QR fragments.
+- Download QR images or copy the encrypted payload sequence.
+- Reassemble pasted or scanned QR fragments during unlock.
+- Detect missing, duplicate and mismatched QR fragments.
+- Download the original file after successful decryption.
+- No account or server upload required.
+- Preserve compatibility with the original legacy Python payload format.
 
-Make sure you have Python 3.10+ and install these dependencies:
+### Desktop application
+
+- Generate QR codes from messages or files.
+- Encrypt content with a password.
+- Decrypt QR codes with password validation.
+- Password strength feedback.
+- GUI-based encryption and decryption workflows.
+- Optional file viewing support in the desktop application.
+
+## Repository structure
+
+```text
+src/
+  qr_encrypt_gui.py       Desktop encryption GUI
+  qr_decrypt_gui.py       Desktop decryption GUI
+web/
+  index.html              Browser application page
+  app.js                  Browser UI and QR transfer logic
+  crypto-core.js          Web Crypto encryption/decryption logic
+  styles.css              Browser application styles
+```
+
+## Requirements
+
+### Desktop application
+
+- Python 3.10 or newer
+- `qrcode`
+- `opencv-python`
+- `pillow`
+- `cryptography`
+- `PyMuPDF`
+- Tkinter
+
+Install the Python dependencies:
 
 ```bash
-pip install qrcode opencv-python pillow cryptography PyMuPDF tkinter
+cd SecuredQRCodeApp
+python -m pip install -r requirements.txt
 ```
-**📦 Installation**
-**git clone https://github.com/Nagarjunareddy4/SecureQRCodeApp.git
-cd SecureQRCodeApp**
 
-If you'd like to build the .exe:
+### Web application
+
+The web application has no build step and uses browser APIs plus QR libraries loaded from jsDelivr. A modern browser with Web Crypto API support is required.
+
+## Run the desktop application
+
+From the repository root:
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --noconsole qr_encrypt_gui.py
+python src/qr_encrypt_gui.py
 ```
+
+In a second terminal, run the decryptor:
+
 ```bash
-pip install pyinstaller
-pyinstaller --onefile --noconsole qr_decrypt_gui.py
+python src/qr_decrypt_gui.py
 ```
-Note: Do not commit .exe to GitHub, instead see "Releases".
 
-**🧪 Usage
-🔐 Generate Secure QR Code**
-Run the encryption GUI:
+## Run the web application locally
+
+From the repository root, start a local static server:
+
 ```bash
-python qr_encrypt_gui.py
+python -m http.server 8000 --directory web
 ```
-Choose to encrypt message or file
-Enter a password (strength meter visible)
-Click “Generate QR” and save the QR image
 
-**🔓 Decrypt QR Code**
-Run the decryption GUI:
+Open [http://localhost:8000](http://localhost:8000).
+
+The web application supports messages and binary files up to 10 MB. Large encrypted payloads are divided into multiple QR codes because a single QR code has limited capacity.
+
+
+## Build Windows executables
+
+Install PyInstaller:
+
 ```bash
-python qr_decrypt_gui.py
+python -m pip install pyinstaller
 ```
-Choose whether the QR is password protected or not
-Upload the QR image
-Enter the password (if required)
-_**If it's a message → it displays
-If it's a file → it opens with view-only access**_
 
-**📄 Release Notes**
-**v1.0.0 **(First Release)
-Initial working version of QR Encrypt and Decrypt tools
-GUI with password strength meter
-File preview with viewing restrictions
-.exe included in Releases
+Build the desktop applications from the repository root:
 
-**📥 Download .exe**
-Visit the Releases page to download the .exe files if you do not want to run the source code manually.
+```bash
+pyinstaller --onefile --noconsole src/qr_encrypt_gui.py
+pyinstaller --onefile --noconsole src/qr_decrypt_gui.py
+```
 
+Do not commit generated `.exe` files to the repository. Publish them through GitHub Releases instead.
 
+## Security notes
+
+- QR codes contain encrypted data, but anyone who obtains a QR image can attempt to unlock it.
+- Use a long, unique password and share it through a separate channel.
+- SecureQR is intended for temporary transfers, not permanent storage.
+- GitHub Pages serves the static web files, but it does not receive the plaintext message, original file or password during browser encryption.
+
+## License
+
+See the repository for licensing information.
