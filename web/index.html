@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <meta name="description" content="SecureQR — encrypt private messages and files up to 10 MB in your browser and transfer them through password-protected QR codes.">
+  <meta name="description" content="SecureQR — encrypt private messages in your browser and transfer them through password-protected QR codes.">
   <meta name="theme-color" content="#08111f">
   <title>SecureQR — Private data, hidden in plain sight.</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -39,7 +39,7 @@
       <div class="hero-copy">
         <p class="eyebrow">PRIVATE QR • CLIENT-SIDE ENCRYPTION</p>
         <h1>Share sensitive information without uploading it.</h1>
-        <p class="hero-lead">Encrypt a private message or any file up to 10 MB directly in your browser, then transfer the encrypted result through one or more QR codes. Your original data and password never need to reach a server.</p>
+        <p class="hero-lead">Encrypt a private message directly in your browser, then transfer the encrypted result through a password-protected QR code. Your message and password never need to reach a server.</p>
         <div class="hero-actions">
           <a class="button primary" href="#studio">Create secure QR</a>
           <a class="button ghost" href="#how-it-works">See how it works</a>
@@ -69,7 +69,7 @@
       <div class="section-heading">
         <p class="eyebrow">SECURE QR STUDIO</p>
         <h2>Encrypt. Transfer. Unlock.</h2>
-        <p>The browser performs the cryptographic work. Messages and binary files up to 10 MB stay on your device and are split into QR-sized parts when necessary.</p>
+        <p>The browser performs the cryptographic work for private messages. File transfer is planned for a future release with a faster large-file transfer flow.</p>
       </div>
 
       <div class="studio-grid">
@@ -80,9 +80,12 @@
           </div>
 
           <div id="create-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-create">
-            <div class="mode-toggle">
+            <div class="mode-toggle" aria-label="Choose content type">
               <button class="mode active" data-mode="message">Message</button>
-              <button class="mode" data-mode="file">File transfer</button>
+              <button class="mode mode-disabled" data-mode="file" type="button" disabled aria-disabled="true">
+                <span>File transfer</span>
+                <small>Coming soon</small>
+              </button>
             </div>
 
             <div id="message-mode" class="input-block">
@@ -98,7 +101,7 @@
                 <div class="drop-icon">↑</div>
                 <strong>Drop any file here</strong>
                 <span>or click to browse</span>
-                <small id="file-meta">Any file type, up to 10 MB. Larger files use multiple encrypted QR codes.</small>
+                <small id="file-meta">File transfer will be available in a future release.</small>
               </div>
             </div>
 
@@ -123,11 +126,19 @@
             <div class="input-block">
               <label for="unlock-file">QR image</label>
               <div id="unlock-dropzone" class="dropzone" tabindex="0">
-                <input id="unlock-file" type="file" accept="image/*" hidden>
+                <input id="unlock-file" type="file" accept="image/*" capture="environment" hidden>
                 <div class="drop-icon">⌁</div>
                 <strong>Drop a QR screenshot/image</strong>
                 <span>or click to browse</span>
-                <small>Camera scan can be added as the next UX layer.</small>
+                <small>On a phone, tap here to photograph a QR code or upload a screenshot.</small>
+              </div>
+              <div class="camera-actions">
+                <button class="button secondary" id="scan-camera" type="button">Use camera scanner</button>
+                <button class="button secondary hidden" id="stop-camera" type="button">Stop camera</button>
+              </div>
+              <div class="camera-preview hidden" id="camera-preview">
+                <video id="camera-video" playsinline muted></video>
+                <p>Point your camera at a SecureQR code.</p>
               </div>
             </div>
 
@@ -188,8 +199,8 @@
       </div>
       <div class="steps">
         <article class="step-card"><span>01</span><h3>Derive</h3><p>Your password is turned into an encryption key using a unique random salt and PBKDF2.</p></article>
-        <article class="step-card"><span>02</span><h3>Encrypt</h3><p>The message or any binary file is encrypted locally with AES-256-GCM before a QR payload is created.</p></article>
-        <article class="step-card"><span>03</span><h3>Transfer</h3><p>Large encrypted payloads are divided into numbered QR codes because one QR code cannot hold 10 MB.</p></article>
+        <article class="step-card"><span>02</span><h3>Encrypt</h3><p>Your message is encrypted locally with AES-256-GCM before a QR payload is created.</p></article>
+        <article class="step-card"><span>03</span><h3>Transfer</h3><p>The encrypted message is transferred through a QR code without uploading the original content.</p></article>
         <article class="step-card"><span>04</span><h3>Unlock</h3><p>The recipient scans or pastes the payload, enters the password, and decrypts locally.</p></article>
       </div>
     </section>
@@ -214,11 +225,11 @@
       </div>
       <div class="faq-list">
         <details><summary>Does SecureQR upload my message or file?</summary><p>No. Encryption happens in your browser. SecureQR does not need your plaintext data, password or account.</p></details>
-        <details><summary>Can I transfer any type of file?</summary><p>Yes. Images, PDFs, archives, videos and other binary files are supported up to 10 MB.</p></details>
+        <details><summary>Can I transfer files?</summary><p>File transfer is marked Coming soon. The current release focuses on secure private-message transfers while a faster large-file transfer method is being prepared.</p></details>
         <details><summary>What happens when I scan a SecureQR code with another scanner?</summary><p>The scanner sees a SecureQR link or encrypted payload, never the original message or file. Opening the SecureQR link loads the encrypted data into this application and asks for the password before anything can be decrypted. A random scanner cannot be forced to show its own password box because QR codes do not control other apps.</p></details>
         <details><summary>Why do large files use multiple QR codes?</summary><p>A QR code has limited storage capacity. SecureQR encrypts the complete file first, then divides the encrypted result into numbered parts for reconstruction.</p></details>
         <details><summary>What happens if a QR part is missing?</summary><p>The file cannot be unlocked until every part has been scanned or pasted. The unlock screen reports missing or duplicate parts.</p></details>
-        <details><summary>Is SecureQR permanent storage?</summary><p>No. It is intended for temporary transfers up to 10 MB, not long-term storage or very large files.</p></details>
+        <details><summary>Is SecureQR permanent storage?</summary><p>No. SecureQR is designed for temporary private-message transfers, not long-term storage.</p></details>
       </div>
     </section>
 

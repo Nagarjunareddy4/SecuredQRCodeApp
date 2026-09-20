@@ -132,6 +132,7 @@ $("message").addEventListener("input", () => {
 });
 
 document.querySelectorAll(".mode").forEach((button) => button.addEventListener("click", () => {
+  if (button.disabled || button.dataset.mode === "file") return;
   state.mode = button.dataset.mode;
   document.querySelectorAll(".mode").forEach((modeButton) => modeButton.classList.toggle("active", modeButton === button));
   $("message-mode").classList.toggle("hidden", state.mode !== "message");
@@ -170,6 +171,84 @@ setupFileDrop("dropzone", "file-input", (file) => {
   $("file-meta").textContent = `${file.name} • ${formatBytes(file.size)} • any file type`;
 });
 setupFileDrop("unlock-dropzone", "unlock-file", decodeQrImage);
+
+let cameraStream = null;
+let cameraFrameRequest = 0;
+const cameraCanvas = document.createElement("canvas");
+const cameraContext = cameraCanvas.getContext("2d", { willReadFrequently: true });
+
+function stopCamera() {
+  if (cameraFrameRequest) cancelAnimationFrame(cameraFrameRequest);
+  cameraFrameRequest = 0;
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  $("camera-video").srcObject = null;
+  $("camera-preview").classList.add("hidden");
+  $("stop-camera").classList.add("hidden");
+  $("scan-camera").classList.remove("hidden");
+}
+
+function appendScannedPayload(value) {
+  const payload = payloadFromValue(value);
+  const existing = getPayloadInputs();
+  if (!payload || existing.includes(payload)) return false;
+  existing.push(payload);
+  $("qr-payload").value = existing.join("\n");
+  const fragments = existing.filter(isFragment);
+  setStatus($("unlock-status"), fragments.length > 1
+    ? `QR fragment ${fragments.length} loaded. Scan the remaining fragments.`
+    : "QR payload loaded. Enter its password and unlock.", "success");
+  return true;
+}
+
+async function scanCameraFrame() {
+  if (!cameraStream) return;
+  const video = $("camera-video");
+  if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && video.videoWidth) {
+    cameraCanvas.width = video.videoWidth;
+    cameraCanvas.height = video.videoHeight;
+    cameraContext.drawImage(video, 0, 0, cameraCanvas.width, cameraCanvas.height);
+    const image = cameraContext.getImageData(0, 0, cameraCanvas.width, cameraCanvas.height);
+    const result = jsQR(image.data, image.width, image.height, { inversionAttempts: "attemptBoth" });
+    if (result?.data && appendScannedPayload(result.data)) {
+      // Keep scanning so a user can point at the next fragment immediately.
+      setStatus($("unlock-status"), "QR fragment loaded. Point at the next fragment or enter the password when all parts are present.", "success");
+    }
+  }
+  cameraFrameRequest = requestAnimationFrame(scanCameraFrame);
+}
+
+async function startCamera() {
+  const status = $("unlock-status");
+  if (!navigator.mediaDevices?.getUserMedia) {
+    setStatus(status, "Camera access requires HTTPS or localhost. Use a QR image instead.", "error");
+    return;
+  }
+  try {
+    stopCamera();
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false,
+    });
+    const video = $("camera-video");
+    video.srcObject = cameraStream;
+    await video.play();
+    $("camera-preview").classList.remove("hidden");
+    $("scan-camera").classList.add("hidden");
+    $("stop-camera").classList.remove("hidden");
+    setStatus(status, "Camera ready. Point it at a SecureQR code.");
+    cameraFrameRequest = requestAnimationFrame(scanCameraFrame);
+  } catch (error) {
+    stopCamera();
+    setStatus(status, error.name === "NotAllowedError"
+      ? "Camera permission was denied. Allow camera access or upload a QR image."
+      : "Unable to start the camera. Use a QR image instead.", "error");
+  }
+}
+
+$("scan-camera").addEventListener("click", startCamera);
+$("stop-camera").addEventListener("click", stopCamera);
+window.addEventListener("pagehide", stopCamera);
 
 async function fileToBytes(file) {
   return new Uint8Array(await file.arrayBuffer());
@@ -308,7 +387,7 @@ function refreshLinkTransfer() {
   const transfer = refreshSharedFragment(payload);
   if (transfer.complete) {
     modalPayload = transfer.payload;
-    openUnlockModal(transfer.payload);
+    openUnlockModal(transfer.payload, true);
   } else {
     openWaitingModal(transfer.count, transfer.total);
   }
@@ -437,16 +516,18 @@ function createBrandedQrCanvas(element) {
   canvas.height = source?.height || element.naturalHeight;
   const context = canvas.getContext("2d");
   context.drawImage(source || element, 0, 0, canvas.width, canvas.height);
-  const size = Math.round(canvas.width * .16);
+  // Keep the logo small enough for phone cameras to read the surrounding QR
+  // modules reliably.
+  const size = Math.round(canvas.width * .10);
   const left = (canvas.width - size) / 2;
   const top = (canvas.height - size) / 2;
   context.fillStyle = "#ffffff";
   context.beginPath();
-  context.roundRect(left - 5, top - 5, size + 10, size + 10, 10);
+  context.roundRect(left - 4, top - 4, size + 8, size + 8, 8);
   context.fill();
   context.fillStyle = "#237a88";
   context.beginPath();
-  context.roundRect(left, top, size, size, 7);
+  context.roundRect(left, top, size, size, 6);
   context.fill();
   context.fillStyle = "#ffffff";
   context.font = `900 ${Math.round(size * .62)}px sans-serif`;
@@ -479,14 +560,16 @@ async function qrBlobForPayload(payload) {
 
 let modalPayload = "";
 
-function openUnlockModal(payload) {
+function openUnlockModal(payload, preservePassword = false) {
   modalPayload = payload;
   $("modal-title").textContent = "Enter the password to unlock";
   $("modal-password-view").classList.remove("hidden");
   $("modal-waiting-view").classList.add("hidden");
   $("modal-progress-bar").style.width = "100%";
   $("modal-content-view").classList.add("hidden");
-  $("modal-password").value = "";
+  if (!preservePassword) $("modal-password").value = "";
+  $("modal-unlock").disabled = false;
+  $("modal-unlock").textContent = "Unlock content";
   setStatus($("modal-status"), "");
   $("unlock-modal").classList.remove("hidden");
   document.body.classList.add("modal-open");
@@ -496,11 +579,13 @@ function openUnlockModal(payload) {
 function openWaitingModal(count, total) {
   modalPayload = "";
   $("modal-title").textContent = "Collecting QR fragments";
-  $("modal-password-view").classList.add("hidden");
+  $("modal-password-view").classList.remove("hidden");
   $("modal-content-view").classList.add("hidden");
   $("modal-waiting-view").classList.remove("hidden");
   $("modal-progress-bar").style.width = `${Math.min(100, (count / total) * 100)}%`;
-  $("modal-waiting-text").textContent = `QR fragment ${count} of ${total} received. Open or share the remaining QR fragments before entering the password.`;
+  $("modal-waiting-text").textContent = `QR fragment ${count} of ${total} received. Enter the password now; unlocking becomes available when all fragments arrive.`;
+  $("modal-unlock").disabled = true;
+  $("modal-unlock").textContent = `Waiting for ${total - count} fragment${total - count === 1 ? "" : "s"}…`;
   $("unlock-modal").classList.remove("hidden");
   document.body.classList.add("modal-open");
 }
@@ -590,48 +675,81 @@ $("download-qr").addEventListener("click", () => {
   downloadCanvasOrImage(state.lastQr, `secureqr${suffix}.png`);
 });
 
+async function copyText(text) {
+  if (navigator.clipboard?.writeText && window.isSecureContext) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  const copied = document.execCommand("copy");
+  textarea.remove();
+  if (!copied) throw new Error("Clipboard access is unavailable. Select and copy the payload manually.");
+}
+
+function showManualCopy(text) {
+  const payload = $("qr-payload");
+  payload.value = text;
+  payload.focus();
+  payload.select();
+  setStatus($("create-status"), "Clipboard access is unavailable. The payload is selected; copy it manually.", "error");
+}
+
 $("copy-payload").addEventListener("click", async () => {
   if (!state.currentPayload) return;
-  await navigator.clipboard.writeText(state.currentPayload);
-  $("copy-payload").textContent = state.payloads.length > 1 ? "Sequence copied" : "Copied";
-  setTimeout(() => $("copy-payload").textContent = "Copy payload", 1200);
+  try {
+    await copyText(state.currentPayload);
+    $("copy-payload").textContent = state.payloads.length > 1 ? "Sequence copied" : "Copied";
+    setTimeout(() => $("copy-payload").textContent = "Copy payload", 1200);
+  } catch (error) {
+    setStatus($("create-status"), error.message, "error");
+  }
 });
 
 $("share-qr").addEventListener("click", async () => {
   if (!state.lastQr || !state.currentQrLink) return;
   const status = $("create-status");
+  const links = state.payloads.map((payload) => createQrLink(payload));
   try {
-    const files = [];
-    for (let index = 0; index < state.payloads.length; index++) {
-      const image = index === state.qrIndex
-        ? await qrImageBlob(state.lastQr)
-        : await qrBlobForPayload(state.payloads[index]);
-      if (!image) throw new Error("QR image is not ready yet.");
-      const suffix = state.payloads.length > 1 ? `-${index + 1}-of-${state.payloads.length}` : "";
-      files.push(new File([image], `secureqr${suffix}.png`, { type: "image/png" }));
+    const shareText = state.payloads.length > 1
+      ? `Open every SecureQR link below or scan every shared QR image, then enter the shared password:\n\n${links.join("\n")}`
+      : `Open this SecureQR link and enter the shared password to unlock the content:\n\n${links[0]}`;
+
+    if (!navigator.share) throw new Error("share-unsupported");
+
+    // Mobile browsers often reject multiple files. Share only the visible QR
+    // image and include every ordered link in the text for sequence transfers.
+    const image = await qrImageBlob(state.lastQr);
+    const suffix = state.payloads.length > 1 ? `-${state.qrIndex + 1}-of-${state.payloads.length}` : "";
+    const file = image && new File([image], `secureqr${suffix}.png`, { type: "image/png" });
+    if (file && navigator.canShare?.({ files: [file] })) {
+      await navigator.share({
+        title: "SecureQR encrypted transfer",
+        text: shareText,
+        url: links[0],
+        files: [file],
+      });
+    } else {
+      await navigator.share({
+        title: "SecureQR encrypted transfer",
+        text: shareText,
+        url: links[0],
+      });
     }
-    const links = state.payloads.map((payload) => createQrLink(payload));
-    const shareData = {
-      title: "SecureQR encrypted transfer",
-      text: state.payloads.length > 1
-        ? `Open every SecureQR link below or scan every shared QR image, then enter the shared password:\n\n${links.join("\n")}`
-        : `Open this SecureQR link and enter the shared password to unlock the content:\n\n${links[0]}`,
-      url: links[0],
-      files,
-    };
-    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files }))) {
-      throw new Error("share-unsupported");
-    }
-    await navigator.share(shareData);
     setStatus(status, state.payloads.length > 1 ? "QR sequence and links ready to share." : "QR image and SecureQR link ready to share.", "success");
   } catch (error) {
     if (error.name === "AbortError") return;
     try {
-      const links = state.payloads.map((payload) => createQrLink(payload));
-      await navigator.clipboard.writeText(links.join("\n"));
+      await copyText(links.join("\n"));
       setStatus(status, state.payloads.length > 1 ? "Sharing is unavailable here. All SecureQR links copied." : "Sharing is unavailable here. SecureQR link copied instead.", "success");
     } catch {
-      setStatus(status, "Sharing is unavailable in this browser. Use Download PNG and Copy payload.", "error");
+      showManualCopy(links.join("\n"));
     }
   }
 });
@@ -703,7 +821,7 @@ loadPayloadFromLink();
 const tourSteps = [
   { target: ".hero-actions .primary", title: "Start here", text: "Create your first encrypted QR transfer from the Studio." },
   { target: "#tab-create", title: "Choose an action", text: "Create a new QR or switch to Unlock QR when you receive one." },
-  { target: ".mode-toggle", title: "Select your content", text: "Protect a private message or any file up to 10 MB." },
+  { target: ".mode-toggle", title: "Select your content", text: "Secure message transfers are available now. File transfers are marked Coming soon while the faster large-file transfer system is being prepared." },
   { target: "#create-password", title: "Add a password", text: "Use a strong password and share it separately from the QR code." },
   { target: "#create-qr", title: "Generate the QR", text: "Encrypt locally, then display one QR or a numbered sequence." },
   { target: "#qr-output", title: "Share securely", text: "After generating the QR, use the actions below this preview to download, copy, or share it directly." },
