@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="SecureQR — encrypt private messages and files up to 10 MB in your browser and transfer them through password-protected QR codes.">
+  <meta name="theme-color" content="#08111f">
+  <title>SecureQR — Private data, hidden in plain sight.</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#top" aria-label="SecureQR home">
+      <span class="brand-mark">▦</span>
+      <span>Secure<span>QR</span></span>
+    </a>
+    <nav class="nav" aria-label="Primary navigation">
+      <a href="#studio">Studio</a>
+      <a href="#how-it-works">How it works</a>
+      <a href="#faq">FAQ</a>
+      <a href="#security">Security</a>
+      <a href="https://github.com/Nagarjunareddy4/SecuredQRCodeApp" target="_blank" rel="noreferrer">GitHub ↗</a>
+    </nav>
+  </header>
+
+  <main id="top">
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow">PRIVATE QR • CLIENT-SIDE ENCRYPTION</p>
+        <h1>Share sensitive information without uploading it.</h1>
+        <p class="hero-lead">Encrypt a private message or any file up to 10 MB directly in your browser, then transfer the encrypted result through one or more QR codes. Your original data and password never need to reach a server.</p>
+        <div class="hero-actions">
+          <a class="button primary" href="#studio">Create secure QR</a>
+          <a class="button ghost" href="#how-it-works">See how it works</a>
+        </div>
+        <div class="trust-row" aria-label="Product principles">
+          <span>🔒 Encrypted in your browser</span>
+          <span>◌ No account required</span>
+          <span>↯ No server upload</span>
+        </div>
+      </div>
+      <div class="hero-visual" aria-hidden="true">
+        <div class="orb orb-one"></div>
+        <div class="orb orb-two"></div>
+        <div class="qr-frame">
+          <div class="qr-grid">
+            <div class="finder f1"></div><div class="finder f2"></div><div class="finder f3"></div>
+            <div class="qr-dots"></div>
+          </div>
+          <div class="scan-line"></div>
+          <span class="badge">AES-GCM</span>
+        </div>
+      </div>
+    </section>
+
+    <section id="studio" class="shell studio-section">
+      <div class="section-heading">
+        <p class="eyebrow">SECURE QR STUDIO</p>
+        <h2>Encrypt. Transfer. Unlock.</h2>
+        <p>The browser performs the cryptographic work. Messages and binary files up to 10 MB stay on your device and are split into QR-sized parts when necessary.</p>
+      </div>
+
+      <div class="studio-grid">
+        <section class="card workspace-card">
+          <div class="tabs" role="tablist" aria-label="Secure QR actions">
+            <button class="tab active" id="tab-create" role="tab" aria-selected="true" aria-controls="create-panel">Create QR</button>
+            <button class="tab" id="tab-unlock" role="tab" aria-selected="false" aria-controls="unlock-panel">Unlock QR</button>
+          </div>
+
+          <div id="create-panel" class="tab-panel" role="tabpanel" aria-labelledby="tab-create">
+            <div class="mode-toggle">
+              <button class="mode active" data-mode="message">Message</button>
+              <button class="mode" data-mode="file">File transfer</button>
+            </div>
+
+            <div id="message-mode" class="input-block">
+              <label for="message">Private message</label>
+              <textarea id="message" rows="8" maxlength="1500" placeholder="Type something private..."></textarea>
+              <div class="input-meta"><span>Encrypted locally</span><span id="message-count">0 / 1500</span></div>
+            </div>
+
+            <div id="file-mode" class="input-block hidden">
+              <label for="file-input">File to protect</label>
+              <div id="dropzone" class="dropzone" tabindex="0">
+                <input id="file-input" type="file" hidden>
+                <div class="drop-icon">↑</div>
+                <strong>Drop any file here</strong>
+                <span>or click to browse</span>
+                <small id="file-meta">Any file type, up to 10 MB. Larger files use multiple encrypted QR codes.</small>
+              </div>
+            </div>
+
+            <div class="password-block">
+              <div class="field-row">
+                <label for="create-password">Password</label>
+                <button class="text-button" id="generate-password" type="button">Generate strong password</button>
+              </div>
+              <div class="password-wrap">
+                <input id="create-password" type="password" autocomplete="new-password" placeholder="Use a long, unique password">
+                <button class="icon-button" id="toggle-create-password" type="button" aria-label="Show password">◉</button>
+              </div>
+              <div class="strength"><span id="strength-bar"></span></div>
+              <div class="input-meta"><span id="strength-label">Enter a password</span><span>PBKDF2-SHA-256 • 600k iterations</span></div>
+            </div>
+
+            <div id="create-status" class="status" aria-live="polite"></div>
+            <button id="create-qr" class="button primary wide" type="button">Encrypt &amp; generate QR sequence</button>
+          </div>
+
+          <div id="unlock-panel" class="tab-panel hidden" role="tabpanel" aria-labelledby="tab-unlock">
+            <div class="input-block">
+              <label for="unlock-file">QR image</label>
+              <div id="unlock-dropzone" class="dropzone" tabindex="0">
+                <input id="unlock-file" type="file" accept="image/*" hidden>
+                <div class="drop-icon">⌁</div>
+                <strong>Drop a QR screenshot/image</strong>
+                <span>or click to browse</span>
+                <small>Camera scan can be added as the next UX layer.</small>
+              </div>
+            </div>
+
+            <div class="input-block">
+              <label for="qr-payload">Or paste the QR payload</label>
+              <textarea id="qr-payload" rows="4" placeholder="Paste an SQR1 / legacy payload here"></textarea>
+            </div>
+
+            <div class="password-block">
+              <label for="unlock-password">Password</label>
+              <div class="password-wrap">
+                <input id="unlock-password" type="password" autocomplete="current-password" placeholder="Password used to protect the QR">
+                <button class="icon-button" id="toggle-unlock-password" type="button" aria-label="Show password">◉</button>
+              </div>
+            </div>
+
+            <div id="unlock-status" class="status" aria-live="polite"></div>
+            <button id="unlock-qr" class="button primary wide" type="button">Decrypt &amp; unlock</button>
+          </div>
+        </section>
+
+        <aside class="card result-card">
+          <div class="result-head">
+            <div>
+              <p class="eyebrow">LIVE OUTPUT</p>
+              <h3 id="result-title">Your encrypted QR appears here</h3>
+            </div>
+            <span id="result-pill" class="pill neutral">Waiting</span>
+          </div>
+
+          <div id="qr-output" class="qr-output empty-state">
+            <div class="empty-qr">▦</div>
+            <p>Generate an encrypted message or file to preview your QR.</p>
+          </div>
+          <div id="result-actions" class="result-actions hidden">
+            <button class="button secondary" id="download-qr" type="button">Download PNG</button>
+            <button class="button secondary" id="copy-payload" type="button">Copy payload</button>
+          </div>
+          <div id="decrypted-output" class="decrypted-output hidden">
+            <div class="output-label">Unlocked content</div>
+            <pre id="decrypted-text"></pre>
+            <a id="download-decrypted" class="button secondary hidden" download>Download file</a>
+          </div>
+          <div class="result-foot">
+            <span id="payload-size">Payload: —</span>
+            <span>Data stays in this browser</span>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <section id="how-it-works" class="section shell">
+      <div class="section-heading centered">
+        <p class="eyebrow">THE FLOW</p>
+        <h2>Private by design, simple to use.</h2>
+        <p>SecureQR is useful for short-lived, person-to-person transfers when email attachments, cloud storage or messaging uploads are not appropriate.</p>
+      </div>
+      <div class="steps">
+        <article class="step-card"><span>01</span><h3>Derive</h3><p>Your password is turned into an encryption key using a unique random salt and PBKDF2.</p></article>
+        <article class="step-card"><span>02</span><h3>Encrypt</h3><p>The message or any binary file is encrypted locally with AES-256-GCM before a QR payload is created.</p></article>
+        <article class="step-card"><span>03</span><h3>Transfer</h3><p>Large encrypted payloads are divided into numbered QR codes because one QR code cannot hold 10 MB.</p></article>
+        <article class="step-card"><span>04</span><h3>Unlock</h3><p>The recipient scans or pastes the payload, enters the password, and decrypts locally.</p></article>
+      </div>
+    </section>
+
+    <section class="section shell" aria-labelledby="audience-title">
+      <div class="section-heading centered">
+        <p class="eyebrow">WHO IS IT FOR?</p>
+        <h2 id="audience-title">Useful when privacy matters.</h2>
+        <p>SecureQR is designed for trusted, temporary transfers between nearby people and devices.</p>
+      </div>
+      <div class="roadmap-grid">
+        <article class="roadmap-card"><span>Individuals</span><h3>Private personal transfers</h3><p>Share sensitive notes, documents, images or recovery information without sending the original file to a cloud service.</p></article>
+        <article class="roadmap-card"><span>Teams</span><h3>Offline handoffs</h3><p>Move confidential files between nearby devices without creating a shared folder or sending an unencrypted attachment.</p></article>
+        <article class="roadmap-card"><span>Remember</span><h3>The password is essential</h3><p>Anyone can photograph a QR code. Use a strong password and share it through a separate channel.</p></article>
+      </div>
+    </section>
+
+    <section id="faq" class="section shell" aria-labelledby="faq-title">
+      <div class="section-heading centered">
+        <p class="eyebrow">COMMON QUESTIONS</p>
+        <h2 id="faq-title">Frequently asked questions.</h2>
+      </div>
+      <div class="faq-list">
+        <details><summary>Does SecureQR upload my message or file?</summary><p>No. Encryption happens in your browser. SecureQR does not need your plaintext data, password or account.</p></details>
+        <details><summary>Can I transfer any type of file?</summary><p>Yes. Images, PDFs, archives, videos and other binary files are supported up to 10 MB.</p></details>
+        <details><summary>Why do large files use multiple QR codes?</summary><p>A QR code has limited storage capacity. SecureQR encrypts the complete file first, then divides the encrypted result into numbered parts for reconstruction.</p></details>
+        <details><summary>What happens if a QR part is missing?</summary><p>The file cannot be unlocked until every part has been scanned or pasted. The unlock screen reports missing or duplicate parts.</p></details>
+        <details><summary>Is SecureQR permanent storage?</summary><p>No. It is intended for temporary transfers up to 10 MB, not long-term storage or very large files.</p></details>
+      </div>
+    </section>
+
+    <section id="security" class="security-section">
+      <div class="shell security-grid">
+        <div>
+          <p class="eyebrow">SECURITY MODEL</p>
+          <h2>Designed to minimize what the website needs to know.</h2>
+          <p>There is no account requirement, no upload endpoint, and no server-side decryption in this prototype. The browser uses the Web Crypto API for password-based key derivation and AES-GCM encryption.</p>
+        </div>
+        <div class="security-list">
+          <div><span>✓</span><div><strong>Random salt</strong><p>Each encryption operation gets a fresh salt.</p></div></div>
+          <div><span>✓</span><div><strong>Authenticated encryption</strong><p>AES-GCM detects tampering and wrong passwords.</p></div></div>
+          <div><span>✓</span><div><strong>Versioned payloads</strong><p>New formats can evolve without silently breaking older codes.</p></div></div>
+          <div><span>!</span><div><strong>QR is not a vault</strong><p>Anyone can photograph a QR. The password is what protects the encrypted content.</p></div></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section shell roadmap">
+      <div class="section-heading centered">
+        <p class="eyebrow">NEXT RELEASES</p>
+        <h2>Turn a utility into a product.</h2>
+        <p>The first web release should stay intentionally small. Then add the features that make SecureQR genuinely useful.</p>
+      </div>
+      <div class="roadmap-grid">
+        <div class="roadmap-card done"><span>Now</span><h3>Secure text</h3><p>AES-GCM + PBKDF2, QR download, payload copy, responsive UI.</p></div>
+        <div class="roadmap-card"><span>Next</span><h3>Camera scanner</h3><p>Live camera scanning, scan history and faster unlock flow.</p></div>
+        <div class="roadmap-card"><span>v2</span><h3>Multi-QR files</h3><p>Chunk encrypted files across a numbered QR sequence and reconstruct safely.</p></div>
+        <div class="roadmap-card"><span>v3</span><h3>Cross-platform core</h3><p>Share one protocol between the Python desktop app, web app and mobile client.</p></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer shell">
+    <div><strong>SecureQR</strong><span>Private data, hidden in plain sight.</span></div>
+    <a href="https://github.com/Nagarjunareddy4/SecuredQRCodeApp" target="_blank" rel="noreferrer">Open source on GitHub ↗</a>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
