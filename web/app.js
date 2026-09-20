@@ -236,7 +236,12 @@ function collectSharedFragment(payload) {
   const key = `secureqr-transfer-${fragment.transferId}`;
   let saved = {};
   try {
-    saved = JSON.parse(localStorage.getItem(key) || "{}");
+    const stored = JSON.parse(localStorage.getItem(key) || "{}");
+    if (stored && typeof stored === "object" && !Array.isArray(stored)) {
+      saved = Object.fromEntries(Object.entries(stored).filter(([index, value]) => {
+        return /^\d+$/.test(index) && typeof value === "string" && parseFragment(value)?.transferId === fragment.transferId;
+      }));
+    }
   } catch {
   }
   saved[fragment.index] = fragment.payload;
@@ -257,6 +262,33 @@ function collectSharedFragment(payload) {
   };
 }
 
+function getStoredTransfer(transferId) {
+  const key = `secureqr-transfer-${transferId}`;
+  try {
+    const saved = JSON.parse(localStorage.getItem(key) || "{}");
+    if (!saved || typeof saved !== "object" || Array.isArray(saved)) return [];
+    return Object.values(saved)
+      .filter((payload) => typeof payload === "string" && parseFragment(payload)?.transferId === transferId)
+      .sort((a, b) => parseFragment(a).index - parseFragment(b).index);
+  } catch {
+    return [];
+  }
+}
+
+function refreshSharedFragment(payload) {
+  const fragment = parseFragment(payload);
+  if (!fragment) return { payload, complete: true, count: 1, total: 1 };
+  const payloads = getStoredTransfer(fragment.transferId);
+  return {
+    payload: payloads.length === fragment.total ? reassemblePayloads(payloads) : fragment.payload,
+    payloads,
+    complete: payloads.length === fragment.total,
+    count: payloads.length,
+    total: fragment.total,
+    transferId: fragment.transferId,
+  };
+}
+
 function loadPayloadFromLink() {
   const payload = new URLSearchParams(window.location.hash.slice(1)).get("payload");
   if (!payload) return;
@@ -268,6 +300,26 @@ function loadPayloadFromLink() {
   }
   openWaitingModal(transfer.count, transfer.total);
 }
+
+function refreshLinkTransfer() {
+  const payload = new URLSearchParams(window.location.hash.slice(1)).get("payload");
+  const fragment = payload && parseFragment(payload);
+  if (!fragment) return;
+  const transfer = refreshSharedFragment(payload);
+  if (transfer.complete) {
+    modalPayload = transfer.payload;
+    openUnlockModal(transfer.payload);
+  } else {
+    openWaitingModal(transfer.count, transfer.total);
+  }
+}
+
+window.addEventListener("storage", (event) => {
+  const payload = new URLSearchParams(window.location.hash.slice(1)).get("payload");
+  const fragment = payload && parseFragment(payload);
+  if (fragment && event.key === `secureqr-transfer-${fragment.transferId}`) refreshLinkTransfer();
+});
+window.addEventListener("pageshow", refreshLinkTransfer);
 
 function getPayloadInputs() {
   return $("qr-payload").value.split(/\s+/).map((value) => payloadFromValue(value.trim())).filter(Boolean);
@@ -562,8 +614,8 @@ $("share-qr").addEventListener("click", async () => {
     const shareData = {
       title: "SecureQR encrypted transfer",
       text: state.payloads.length > 1
-        ? `Open all ${state.payloads.length} SecureQR links or scan all shared QR images, then enter the shared password:`
-        : "Open this SecureQR link and enter the shared password to unlock the content:",
+        ? `Open every SecureQR link below or scan every shared QR image, then enter the shared password:\n\n${links.join("\n")}`
+        : `Open this SecureQR link and enter the shared password to unlock the content:\n\n${links[0]}`,
       url: links[0],
       files,
     };
@@ -647,3 +699,88 @@ $("unlock-qr").addEventListener("click", async () => {
 });
 
 loadPayloadFromLink();
+
+const tourSteps = [
+  { target: ".hero-actions .primary", title: "Start here", text: "Create your first encrypted QR transfer from the Studio." },
+  { target: "#tab-create", title: "Choose an action", text: "Create a new QR or switch to Unlock QR when you receive one." },
+  { target: ".mode-toggle", title: "Select your content", text: "Protect a private message or any file up to 10 MB." },
+  { target: "#create-password", title: "Add a password", text: "Use a strong password and share it separately from the QR code." },
+  { target: "#create-qr", title: "Generate the QR", text: "Encrypt locally, then display one QR or a numbered sequence." },
+  { target: "#qr-output", title: "Share securely", text: "After generating the QR, use the actions below this preview to download, copy, or share it directly." },
+  { target: "#tab-unlock", title: "Unlock content", text: "The recipient collects every fragment, enters the password, and decrypts locally." },
+];
+
+const tour = $("product-tour");
+const tourTarget = $("tour-target");
+let tourIndex = 0;
+
+function closeTour() {
+  tour.classList.add("hidden");
+  tourTarget.classList.remove("tour-highlight");
+  try { localStorage.setItem("secureqr-tour-complete", "1"); } catch { }
+}
+
+function renderTourStep() {
+  const step = tourSteps[tourIndex];
+  const target = document.querySelector(step.target);
+  if (!target) return closeTour();
+  target.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
+  tourTarget.textContent = "";
+  const positionTarget = () => {
+    const rect = target.getBoundingClientRect();
+    tourTarget.style.left = `${Math.max(6, rect.left - 6)}px`;
+    tourTarget.style.top = `${Math.max(6, rect.top - 6)}px`;
+    tourTarget.style.width = `${rect.width + 12}px`;
+    tourTarget.style.height = `${rect.height + 12}px`;
+  };
+  window.requestAnimationFrame(positionTarget);
+  window.setTimeout(positionTarget, 450);
+  tourTarget.classList.add("tour-highlight");
+  $("tour-step").textContent = `${tourIndex + 1} / ${tourSteps.length}`;
+  $("tour-title").textContent = step.title;
+  $("tour-text").textContent = step.text;
+  $("tour-back").disabled = tourIndex === 0;
+  $("tour-next").textContent = tourIndex === tourSteps.length - 1 ? "Finish" : "Next";
+}
+
+function openTour() {
+  tourIndex = 0;
+  tour.classList.remove("hidden");
+  renderTourStep();
+}
+
+$("tour-next").addEventListener("click", () => {
+  if (tourIndex === tourSteps.length - 1) return closeTour();
+  tourIndex++;
+  renderTourStep();
+});
+$("tour-back").addEventListener("click", () => {
+  if (tourIndex > 0) { tourIndex--; renderTourStep(); }
+});
+$("tour-skip").addEventListener("click", closeTour);
+$("tour-help").addEventListener("click", openTour);
+$("tour-launch").addEventListener("click", openTour);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !tour.classList.contains("hidden")) closeTour();
+});
+window.addEventListener("resize", () => {
+  if (!tour.classList.contains("hidden")) {
+    const target = document.querySelector(tourSteps[tourIndex].target);
+    if (target) {
+      const rect = target.getBoundingClientRect();
+      tourTarget.style.left = `${Math.max(6, rect.left - 6)}px`;
+      tourTarget.style.top = `${Math.max(6, rect.top - 6)}px`;
+      tourTarget.style.width = `${rect.width + 12}px`;
+      tourTarget.style.height = `${rect.height + 12}px`;
+    }
+  }
+});
+window.addEventListener("orientationchange", () => {
+  window.setTimeout(() => {
+    if (!tour.classList.contains("hidden")) renderTourStep();
+  }, 250);
+});
+
+let hasCompletedTour = false;
+try { hasCompletedTour = localStorage.getItem("secureqr-tour-complete") === "1"; } catch { }
+if (!hasCompletedTour && !window.location.hash.includes("payload=")) window.setTimeout(openTour, 700);

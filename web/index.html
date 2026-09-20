@@ -31,6 +31,7 @@
       <span class="theme-icon" aria-hidden="true">☾</span>
       <span class="theme-label">Dark</span>
     </button>
+    <button class="tour-help" id="tour-help" type="button" aria-label="Open SecureQR tour">?</button>
   </header>
 
   <main id="top">
@@ -42,6 +43,7 @@
         <div class="hero-actions">
           <a class="button primary" href="#studio">Create secure QR</a>
           <a class="button ghost" href="#how-it-works">See how it works</a>
+          <button class="button ghost" id="tour-launch" type="button">Take a quick tour</button>
         </div>
         <div class="trust-row" aria-label="Product principles">
           <span>🔒 Encrypted in your browser</span>
@@ -280,6 +282,26 @@
         <div class="output-label">Unlocked content</div>
         <pre id="modal-content"></pre>
         <a id="modal-download" class="button secondary hidden" download>Download unlocked file</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="product-tour hidden" id="product-tour" aria-label="SecureQR quick tour">
+    <div class="tour-backdrop" id="tour-backdrop"></div>
+    <div class="tour-target" id="tour-target" aria-hidden="true"></div>
+    <div class="tour-card" role="dialog" aria-modal="true" aria-labelledby="tour-title">
+      <div class="tour-card-head">
+        <span class="eyebrow">QUICK TOUR</span>
+        <div class="tour-card-meta">
+          <span id="tour-step">1 / 7</span>
+          <button class="tour-close" id="tour-close" type="button" aria-label="Close tour">×</button>
+        </div>
+      </div>
+      <h2 id="tour-title">Start here</h2>
+      <p id="tour-text"></p>
+      <div class="tour-actions">
+        <button class="button ghost" id="tour-skip" type="button">Skip</button>
+        <div><button class="button secondary" id="tour-back" type="button">Back</button><button class="button primary" id="tour-next" type="button">Next</button></div>
       </div>
     </div>
   </section>
