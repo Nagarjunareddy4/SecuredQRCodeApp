@@ -3,6 +3,8 @@ import { encryptPayload, decryptPayload, bytesToText, bytesFromText } from "./cr
 const $ = (id) => document.getElementById(id);
 
 const themeToggle = $("theme-toggle");
+const navToggle = $("nav-toggle");
+const primaryNavigation = $("primary-navigation");
 let savedTheme = null;
 try {
   savedTheme = localStorage.getItem("secureqr-theme");
@@ -30,9 +32,29 @@ themeToggle.addEventListener("click", () => {
   applyTheme(nextTheme);
 });
 
+function closeNavigation() {
+  primaryNavigation.classList.remove("open");
+  navToggle.setAttribute("aria-expanded", "false");
+  navToggle.setAttribute("aria-label", "Open navigation menu");
+}
+
+navToggle.addEventListener("click", () => {
+  const isOpen = primaryNavigation.classList.toggle("open");
+  navToggle.setAttribute("aria-expanded", String(isOpen));
+  navToggle.setAttribute("aria-label", isOpen ? "Close navigation menu" : "Open navigation menu");
+});
+primaryNavigation.querySelectorAll("a").forEach((link) => link.addEventListener("click", closeNavigation));
+document.addEventListener("click", (event) => {
+  if (!primaryNavigation.contains(event.target) && !navToggle.contains(event.target)) closeNavigation();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape") closeNavigation();
+});
+
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const QR_PAYLOAD_LIMIT = 2400;
 const QR_FRAGMENT_SIZE = 1800;
+const PUBLIC_APP_URL = "https://nagarjunareddy4.github.io/SecuredQRCodeApp/";
 const state = {
   mode: "message",
   file: null,
@@ -40,6 +62,7 @@ const state = {
   payloads: [],
   qrIndex: 0,
   lastQr: null,
+  currentQrLink: "",
 };
 
 const createTab = $("tab-create");
@@ -177,8 +200,38 @@ function isFragment(payload) {
   return payload.startsWith("SQR1P.");
 }
 
+function getAppUrl() {
+  if (window.location.protocol === "http:" || window.location.protocol === "https:") {
+    return `${window.location.origin}${window.location.pathname}`;
+  }
+  return PUBLIC_APP_URL;
+}
+
+function createQrLink(payload) {
+  const url = new URL(getAppUrl());
+  url.hash = `payload=${encodeURIComponent(payload)}`;
+  return url.toString();
+}
+
+function payloadFromValue(value) {
+  try {
+    const url = new URL(value);
+    const payload = new URLSearchParams(url.hash.slice(1)).get("payload");
+    if (payload && (payload.startsWith("SQR1.") || isFragment(payload))) return payload;
+  } catch {
+  }
+  return value;
+}
+
+function loadPayloadFromLink() {
+  const payload = new URLSearchParams(window.location.hash.slice(1)).get("payload");
+  if (!payload) return;
+  $("qr-payload").value = payload;
+  openUnlockModal(payload);
+}
+
 function getPayloadInputs() {
-  return $("qr-payload").value.split(/\s+/).map((value) => value.trim()).filter(Boolean);
+  return $("qr-payload").value.split(/\s+/).map((value) => payloadFromValue(value.trim())).filter(Boolean);
 }
 
 function reassemblePayloads(payloads) {
@@ -228,11 +281,12 @@ function renderCurrentQr() {
   container.className = "qr-output";
   container.innerHTML = "";
   const qrStage = document.createElement("div");
+  qrStage.className = "qr-stage";
   container.appendChild(qrStage);
 
   try {
     new QRCode(qrStage, {
-      text: payload,
+      text: createQrLink(payload),
       width: 280,
       height: 280,
       colorDark: "#07101e",
@@ -242,6 +296,11 @@ function renderCurrentQr() {
   } catch {
     throw new Error("This QR fragment is too large. Try again with a smaller payload.");
   }
+  const logo = document.createElement("div");
+  logo.className = "qr-logo";
+  logo.setAttribute("aria-label", "SecureQR logo");
+  logo.innerHTML = "<span>▦</span>";
+  qrStage.appendChild(logo);
 
   if (state.payloads.length > 1) {
     const controls = document.createElement("div");
@@ -266,17 +325,113 @@ function renderCurrentQr() {
     ? `Payload: ${state.payloads.length} QR codes`
     : `Payload: ${payload.length.toLocaleString()} chars`;
   state.currentPayload = state.payloads.join("\n");
+  state.currentQrLink = createQrLink(payload);
   state.lastQr = qrStage.querySelector("canvas") || qrStage.querySelector("img");
 }
 
 function downloadCanvasOrImage(element, filename) {
   if (!element) return;
-  const dataUrl = element.tagName === "CANVAS" ? element.toDataURL("image/png") : element.src;
+  const dataUrl = createBrandedQrCanvas(element).toDataURL("image/png");
   const link = document.createElement("a");
   link.href = dataUrl;
   link.download = filename;
   link.click();
 }
+
+function createBrandedQrCanvas(element) {
+  const source = element.tagName === "CANVAS" ? element : null;
+  const canvas = document.createElement("canvas");
+  canvas.width = source?.width || element.naturalWidth;
+  canvas.height = source?.height || element.naturalHeight;
+  const context = canvas.getContext("2d");
+  context.drawImage(source || element, 0, 0, canvas.width, canvas.height);
+  const size = Math.round(canvas.width * .16);
+  const left = (canvas.width - size) / 2;
+  const top = (canvas.height - size) / 2;
+  context.fillStyle = "#ffffff";
+  context.beginPath();
+  context.roundRect(left - 5, top - 5, size + 10, size + 10, 10);
+  context.fill();
+  context.fillStyle = "#237a88";
+  context.beginPath();
+  context.roundRect(left, top, size, size, 7);
+  context.fill();
+  context.fillStyle = "#ffffff";
+  context.font = `900 ${Math.round(size * .62)}px sans-serif`;
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText("▦", canvas.width / 2, canvas.height / 2 + 1);
+  return canvas;
+}
+
+function qrImageBlob(element) {
+  return new Promise((resolve) => {
+    if (!element) return resolve(null);
+    createBrandedQrCanvas(element).toBlob(resolve, "image/png");
+  });
+}
+
+let modalPayload = "";
+
+function openUnlockModal(payload) {
+  modalPayload = payload;
+  $("modal-title").textContent = "Enter the password to unlock";
+  $("modal-password-view").classList.remove("hidden");
+  $("modal-content-view").classList.add("hidden");
+  $("modal-password").value = "";
+  setStatus($("modal-status"), "");
+  $("unlock-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
+  window.setTimeout(() => $("modal-password").focus(), 0);
+}
+
+function closeUnlockModal() {
+  $("unlock-modal").classList.add("hidden");
+  document.body.classList.remove("modal-open");
+}
+
+$("modal-close").addEventListener("click", closeUnlockModal);
+$("toggle-modal-password").addEventListener("click", () => {
+  const input = $("modal-password");
+  input.type = input.type === "password" ? "text" : "password";
+});
+$("modal-password").addEventListener("keydown", (event) => {
+  if (event.key === "Enter") $("modal-unlock").click();
+});
+$("unlock-modal").addEventListener("click", (event) => {
+  if (event.target === $("unlock-modal")) closeUnlockModal();
+});
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && !$("unlock-modal").classList.contains("hidden")) closeUnlockModal();
+});
+
+$("modal-unlock").addEventListener("click", async () => {
+  const status = $("modal-status");
+  setStatus(status, "Decrypting locally…");
+  try {
+    const payload = reassemblePayloads([modalPayload]);
+    const password = $("modal-password").value;
+    if (!password) throw new Error("Enter the password.");
+    const result = await decryptPayload(payload, password);
+    const content = $("modal-content");
+    const download = $("modal-download");
+    $("modal-title").textContent = "Content unlocked";
+    $("modal-password-view").classList.add("hidden");
+    $("modal-content-view").classList.remove("hidden");
+
+    if (result.type === "text" || result.version === "legacy") {
+      content.textContent = bytesToText(result.bytes);
+      download.classList.add("hidden");
+    } else {
+      content.textContent = `${result.name}\n${formatBytes(result.bytes.length)}`;
+      download.href = URL.createObjectURL(new Blob([result.bytes], { type: result.mime }));
+      download.download = result.name || "secureqr-file";
+      download.classList.remove("hidden");
+    }
+  } catch (error) {
+    setStatus(status, error.message || "Unable to unlock this content.", "error");
+  }
+});
 
 $("create-qr").addEventListener("click", async () => {
   const status = $("create-status");
@@ -322,6 +477,42 @@ $("copy-payload").addEventListener("click", async () => {
   setTimeout(() => $("copy-payload").textContent = "Copy payload", 1200);
 });
 
+$("share-qr").addEventListener("click", async () => {
+  if (!state.lastQr || !state.currentQrLink) return;
+  const status = $("create-status");
+  const filename = state.payloads.length > 1
+    ? `secureqr-${state.qrIndex + 1}-of-${state.payloads.length}.png`
+    : "secureqr.png";
+  const image = await qrImageBlob(state.lastQr);
+  if (!image) {
+    setStatus(status, "The QR image is not ready yet.", "error");
+    return;
+  }
+
+  try {
+    const file = new File([image], filename, { type: "image/png" });
+    const shareData = {
+      title: "SecureQR encrypted transfer",
+      text: "Open this SecureQR link and enter the shared password to unlock the content:",
+      url: state.currentQrLink,
+      files: [file],
+    };
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+      throw new Error("share-unsupported");
+    }
+    await navigator.share(shareData);
+    setStatus(status, "QR image and SecureQR link ready to share.", "success");
+  } catch (error) {
+    if (error.name === "AbortError") return;
+    try {
+      await navigator.clipboard.writeText(state.currentQrLink);
+      setStatus(status, "Sharing is unavailable here. SecureQR link copied instead.", "success");
+    } catch {
+      setStatus(status, "Sharing is unavailable in this browser. Use Download PNG and Copy payload.", "error");
+    }
+  }
+});
+
 async function decodeQrImage(file) {
   const status = $("unlock-status");
   setStatus(status, "Reading QR image…");
@@ -338,7 +529,8 @@ async function decodeQrImage(file) {
     if (!result) throw new Error("No QR code was detected in that image.");
 
     const existing = getPayloadInputs();
-    if (!existing.includes(result.data)) existing.push(result.data);
+    const payload = payloadFromValue(result.data);
+    if (!existing.includes(payload)) existing.push(payload);
     $("qr-payload").value = existing.join("\n");
     const fragmentCount = existing.filter(isFragment).length;
     setStatus(status, fragmentCount > 1
@@ -382,3 +574,5 @@ $("unlock-qr").addEventListener("click", async () => {
     setStatus(status, error.message || "Decryption failed.", "error");
   }
 });
+
+loadPayloadFromLink();

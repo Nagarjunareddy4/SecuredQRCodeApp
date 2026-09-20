@@ -17,13 +17,16 @@
       <span class="brand-mark">▦</span>
       <span>Secure<span>QR</span></span>
     </a>
-    <nav class="nav" aria-label="Primary navigation">
+    <nav class="nav" id="primary-navigation" aria-label="Primary navigation">
       <a href="#studio">Studio</a>
       <a href="#how-it-works">How it works</a>
       <a href="#faq">FAQ</a>
       <a href="#security">Security</a>
       <a href="https://github.com/Nagarjunareddy4/SecuredQRCodeApp" target="_blank" rel="noreferrer">GitHub ↗</a>
     </nav>
+    <button class="nav-toggle" id="nav-toggle" type="button" aria-label="Open navigation menu" aria-expanded="false" aria-controls="primary-navigation">
+      <span></span><span></span><span></span>
+    </button>
     <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Switch to dark theme" aria-pressed="false">
       <span class="theme-icon" aria-hidden="true">☾</span>
       <span class="theme-label">Dark</span>
@@ -160,6 +163,7 @@
           <div id="result-actions" class="result-actions hidden">
             <button class="button secondary" id="download-qr" type="button">Download PNG</button>
             <button class="button secondary" id="copy-payload" type="button">Copy payload</button>
+            <button class="button secondary" id="share-qr" type="button">Share QR</button>
           </div>
           <div id="decrypted-output" class="decrypted-output hidden">
             <div class="output-label">Unlocked content</div>
@@ -209,6 +213,7 @@
       <div class="faq-list">
         <details><summary>Does SecureQR upload my message or file?</summary><p>No. Encryption happens in your browser. SecureQR does not need your plaintext data, password or account.</p></details>
         <details><summary>Can I transfer any type of file?</summary><p>Yes. Images, PDFs, archives, videos and other binary files are supported up to 10 MB.</p></details>
+        <details><summary>What happens when I scan a SecureQR code with another scanner?</summary><p>The scanner sees a SecureQR link or encrypted payload, never the original message or file. Opening the SecureQR link loads the encrypted data into this application and asks for the password before anything can be decrypted. A random scanner cannot be forced to show its own password box because QR codes do not control other apps.</p></details>
         <details><summary>Why do large files use multiple QR codes?</summary><p>A QR code has limited storage capacity. SecureQR encrypts the complete file first, then divides the encrypted result into numbered parts for reconstruction.</p></details>
         <details><summary>What happens if a QR part is missing?</summary><p>The file cannot be unlocked until every part has been scanned or pasted. The unlock screen reports missing or duplicate parts.</p></details>
         <details><summary>Is SecureQR permanent storage?</summary><p>No. It is intended for temporary transfers up to 10 MB, not long-term storage or very large files.</p></details>
@@ -250,6 +255,29 @@
     <div><strong>SecureQR</strong><span>Private data, hidden in plain sight.</span></div>
     <a href="https://github.com/Nagarjunareddy4/SecuredQRCodeApp" target="_blank" rel="noreferrer">Open source on GitHub ↗</a>
   </footer>
+
+  <section class="unlock-modal hidden" id="unlock-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="unlock-dialog">
+      <button class="modal-close" id="modal-close" type="button" aria-label="Close unlock dialog">×</button>
+      <div class="modal-kicker">SECUREQR UNLOCK</div>
+      <h2 id="modal-title">Enter the password to unlock</h2>
+      <p class="modal-copy">This encrypted content can only be opened inside SecureQR. The password is never sent to a server.</p>
+      <div id="modal-password-view">
+        <label for="modal-password">Password</label>
+        <div class="password-wrap">
+          <input id="modal-password" type="password" autocomplete="current-password" placeholder="Enter the shared password">
+          <button class="icon-button" id="toggle-modal-password" type="button" aria-label="Show password">◉</button>
+        </div>
+        <div id="modal-status" class="status" aria-live="polite"></div>
+        <button class="button primary wide" id="modal-unlock" type="button">Unlock content</button>
+      </div>
+      <div class="modal-content-view hidden" id="modal-content-view">
+        <div class="output-label">Unlocked content</div>
+        <pre id="modal-content"></pre>
+        <a id="modal-download" class="button secondary hidden" download>Download unlocked file</a>
+      </div>
+    </div>
+  </section>
 
   <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
