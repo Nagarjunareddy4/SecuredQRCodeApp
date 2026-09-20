@@ -223,11 +223,50 @@ function payloadFromValue(value) {
   return value;
 }
 
+function parseFragment(payload) {
+  const match = payload.match(/^SQR1P\.([a-f0-9]+)\.(\d+)\.(\d+)\.(.+)$/s);
+  if (!match) return null;
+  return { transferId: match[1], index: Number(match[2]), total: Number(match[3]), payload };
+}
+
+function collectSharedFragment(payload) {
+  const fragment = parseFragment(payload);
+  if (!fragment) return { payload, complete: true, count: 1, total: 1 };
+
+  const key = `secureqr-transfer-${fragment.transferId}`;
+  let saved = {};
+  try {
+    saved = JSON.parse(localStorage.getItem(key) || "{}");
+  } catch {
+  }
+  saved[fragment.index] = fragment.payload;
+  try {
+    localStorage.setItem(key, JSON.stringify(saved));
+  } catch {
+  }
+
+  const payloads = Object.keys(saved).sort((a, b) => Number(a) - Number(b)).map((index) => saved[index]);
+  const complete = payloads.length === fragment.total;
+  return {
+    payload: complete ? reassemblePayloads(payloads) : fragment.payload,
+    payloads,
+    complete,
+    count: payloads.length,
+    total: fragment.total,
+    transferId: fragment.transferId,
+  };
+}
+
 function loadPayloadFromLink() {
   const payload = new URLSearchParams(window.location.hash.slice(1)).get("payload");
   if (!payload) return;
-  $("qr-payload").value = payload;
-  openUnlockModal(payload);
+  const transfer = collectSharedFragment(payload);
+  $("qr-payload").value = transfer.payloads ? transfer.payloads.join("\n") : payload;
+  if (transfer.complete) {
+    openUnlockModal(transfer.payload);
+    return;
+  }
+  openWaitingModal(transfer.count, transfer.total);
 }
 
 function getPayloadInputs() {
@@ -326,6 +365,7 @@ function renderCurrentQr() {
     : `Payload: ${payload.length.toLocaleString()} chars`;
   state.currentPayload = state.payloads.join("\n");
   state.currentQrLink = createQrLink(payload);
+  $("share-qr").textContent = state.payloads.length > 1 ? "Share QR sequence" : "Share QR";
   state.lastQr = qrStage.querySelector("canvas") || qrStage.querySelector("img");
 }
 
@@ -371,18 +411,46 @@ function qrImageBlob(element) {
   });
 }
 
+async function qrBlobForPayload(payload) {
+  const stage = document.createElement("div");
+  new QRCode(stage, {
+    text: createQrLink(payload),
+    width: 280,
+    height: 280,
+    colorDark: "#07101e",
+    colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.L,
+  });
+  const element = stage.querySelector("canvas") || stage.querySelector("img");
+  return qrImageBlob(element);
+}
+
 let modalPayload = "";
 
 function openUnlockModal(payload) {
   modalPayload = payload;
   $("modal-title").textContent = "Enter the password to unlock";
   $("modal-password-view").classList.remove("hidden");
+  $("modal-waiting-view").classList.add("hidden");
+  $("modal-progress-bar").style.width = "100%";
   $("modal-content-view").classList.add("hidden");
   $("modal-password").value = "";
   setStatus($("modal-status"), "");
   $("unlock-modal").classList.remove("hidden");
   document.body.classList.add("modal-open");
   window.setTimeout(() => $("modal-password").focus(), 0);
+}
+
+function openWaitingModal(count, total) {
+  modalPayload = "";
+  $("modal-title").textContent = "Collecting QR fragments";
+  $("modal-password-view").classList.add("hidden");
+  $("modal-content-view").classList.add("hidden");
+  $("modal-waiting-view").classList.remove("hidden");
+  $("modal-progress-bar").style.width = `${Math.min(100, (count / total) * 100)}%`;
+  $("modal-waiting-text").textContent = `QR fragment ${count} of ${total} received. Open or share the remaining QR fragments before entering the password.`;
+  $("unlock-modal").classList.remove("hidden");
+  document.body.classList.add("modal-open");
 }
 
 function closeUnlockModal() {
@@ -480,33 +548,36 @@ $("copy-payload").addEventListener("click", async () => {
 $("share-qr").addEventListener("click", async () => {
   if (!state.lastQr || !state.currentQrLink) return;
   const status = $("create-status");
-  const filename = state.payloads.length > 1
-    ? `secureqr-${state.qrIndex + 1}-of-${state.payloads.length}.png`
-    : "secureqr.png";
-  const image = await qrImageBlob(state.lastQr);
-  if (!image) {
-    setStatus(status, "The QR image is not ready yet.", "error");
-    return;
-  }
-
   try {
-    const file = new File([image], filename, { type: "image/png" });
+    const files = [];
+    for (let index = 0; index < state.payloads.length; index++) {
+      const image = index === state.qrIndex
+        ? await qrImageBlob(state.lastQr)
+        : await qrBlobForPayload(state.payloads[index]);
+      if (!image) throw new Error("QR image is not ready yet.");
+      const suffix = state.payloads.length > 1 ? `-${index + 1}-of-${state.payloads.length}` : "";
+      files.push(new File([image], `secureqr${suffix}.png`, { type: "image/png" }));
+    }
+    const links = state.payloads.map((payload) => createQrLink(payload));
     const shareData = {
       title: "SecureQR encrypted transfer",
-      text: "Open this SecureQR link and enter the shared password to unlock the content:",
-      url: state.currentQrLink,
-      files: [file],
+      text: state.payloads.length > 1
+        ? `Open all ${state.payloads.length} SecureQR links or scan all shared QR images, then enter the shared password:`
+        : "Open this SecureQR link and enter the shared password to unlock the content:",
+      url: links[0],
+      files,
     };
-    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files: [file] }))) {
+    if (!navigator.share || (navigator.canShare && !navigator.canShare({ files }))) {
       throw new Error("share-unsupported");
     }
     await navigator.share(shareData);
-    setStatus(status, "QR image and SecureQR link ready to share.", "success");
+    setStatus(status, state.payloads.length > 1 ? "QR sequence and links ready to share." : "QR image and SecureQR link ready to share.", "success");
   } catch (error) {
     if (error.name === "AbortError") return;
     try {
-      await navigator.clipboard.writeText(state.currentQrLink);
-      setStatus(status, "Sharing is unavailable here. SecureQR link copied instead.", "success");
+      const links = state.payloads.map((payload) => createQrLink(payload));
+      await navigator.clipboard.writeText(links.join("\n"));
+      setStatus(status, state.payloads.length > 1 ? "Sharing is unavailable here. All SecureQR links copied." : "Sharing is unavailable here. SecureQR link copied instead.", "success");
     } catch {
       setStatus(status, "Sharing is unavailable in this browser. Use Download PNG and Copy payload.", "error");
     }

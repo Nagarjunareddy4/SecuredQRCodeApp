@@ -271,6 +271,11 @@
         <div id="modal-status" class="status" aria-live="polite"></div>
         <button class="button primary wide" id="modal-unlock" type="button">Unlock content</button>
       </div>
+      <div class="modal-waiting-view hidden" id="modal-waiting-view">
+        <div class="modal-progress-icon">↯</div>
+        <div class="modal-progress-track" aria-hidden="true"><span id="modal-progress-bar"></span></div>
+        <p id="modal-waiting-text">QR fragment received. Waiting for the remaining fragments.</p>
+      </div>
       <div class="modal-content-view hidden" id="modal-content-view">
         <div class="output-label">Unlocked content</div>
         <pre id="modal-content"></pre>
